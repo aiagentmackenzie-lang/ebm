@@ -1,4 +1,4 @@
-/dist/*.db
+/dist/
 /ebm_queue.db
 /agent.id
 *.test
