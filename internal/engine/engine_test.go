@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/raphael/ebm/internal/model"
+	"github.com/aiagentmackenzie-lang/ebm/internal/model"
 )
 
 func TestMatchCondition(t *testing.T) {

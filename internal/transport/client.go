@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/raphael/ebm/internal/config"
-	"github.com/raphael/ebm/internal/model"
-	"github.com/raphael/ebm/internal/normalizer"
+	"github.com/aiagentmackenzie-lang/ebm/internal/config"
+	"github.com/aiagentmackenzie-lang/ebm/internal/model"
+	"github.com/aiagentmackenzie-lang/ebm/internal/normalizer"
 )
 
 // Client sends events to SecurityScarletAI.

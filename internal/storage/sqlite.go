@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/raphael/ebm/internal/model"
+	"github.com/aiagentmackenzie-lang/ebm/internal/model"
 	_ "modernc.org/sqlite"
 )
 

@@ -1,7 +1,7 @@
 package normalizer
 
 import (
-	"github.com/raphael/ebm/internal/model"
+	"github.com/aiagentmackenzie-lang/ebm/internal/model"
 )
 
 // Flatten converts an internal EDR Core Schema Event into the flat

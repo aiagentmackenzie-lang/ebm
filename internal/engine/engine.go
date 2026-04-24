@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/raphael/ebm/internal/model"
+	"github.com/aiagentmackenzie-lang/ebm/internal/model"
 	"gopkg.in/yaml.v3"
 )
 

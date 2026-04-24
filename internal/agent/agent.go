@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/raphael/ebm/internal/collector"
-	"github.com/raphael/ebm/internal/config"
-	"github.com/raphael/ebm/internal/engine"
-	"github.com/raphael/ebm/internal/model"
-	"github.com/raphael/ebm/internal/normalizer"
-	"github.com/raphael/ebm/internal/storage"
-	"github.com/raphael/ebm/internal/transport"
+	"github.com/aiagentmackenzie-lang/ebm/internal/collector"
+	"github.com/aiagentmackenzie-lang/ebm/internal/config"
+	"github.com/aiagentmackenzie-lang/ebm/internal/engine"
+	"github.com/aiagentmackenzie-lang/ebm/internal/model"
+	"github.com/aiagentmackenzie-lang/ebm/internal/normalizer"
+	"github.com/aiagentmackenzie-lang/ebm/internal/storage"
+	"github.com/aiagentmackenzie-lang/ebm/internal/transport"
 )
 
 // Agent orchestrates collectors, normalizer, rule engine, and transport.

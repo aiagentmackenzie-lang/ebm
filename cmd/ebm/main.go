@@ -10,13 +10,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/raphael/ebm/internal/agent"
-	"github.com/raphael/ebm/internal/config"
-	"github.com/raphael/ebm/internal/emulator"
-	"github.com/raphael/ebm/internal/engine"
-	"github.com/raphael/ebm/internal/model"
-	"github.com/raphael/ebm/internal/normalizer"
-	"github.com/raphael/ebm/internal/transport"
+	"github.com/aiagentmackenzie-lang/ebm/internal/agent"
+	"github.com/aiagentmackenzie-lang/ebm/internal/config"
+	"github.com/aiagentmackenzie-lang/ebm/internal/emulator"
+	"github.com/aiagentmackenzie-lang/ebm/internal/engine"
+	"github.com/aiagentmackenzie-lang/ebm/internal/model"
+	"github.com/aiagentmackenzie-lang/ebm/internal/normalizer"
+	"github.com/aiagentmackenzie-lang/ebm/internal/transport"
 )
 
 var (

@@ -1,4 +1,4 @@
-module github.com/raphael/ebm
+module github.com/aiagentmackenzie-lang/ebm
 
 go 1.22
 

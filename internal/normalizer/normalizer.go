@@ -3,7 +3,7 @@ package normalizer
 import (
 	"time"
 
-	"github.com/raphael/ebm/internal/model"
+	"github.com/aiagentmackenzie-lang/ebm/internal/model"
 )
 
 // Normalize maps a raw platform event into the EDR Core Schema.
