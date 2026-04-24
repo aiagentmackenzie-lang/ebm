@@ -1,0 +1,12 @@
+id: ebm-rule-003
+name: "Suspicious Network Beaconing"
+description: Detects low-jitter external beaconing from unusual processes
+mitre:
+  technique: "T1071"
+  tactic: "Command and Control"
+severity: medium
+condition:
+  event.type: "network_connect"
+  network.direction: "outbound"
+  process.name: ["rundll32.exe", "regsvr32.exe", "powershell.exe", "pwsh.exe"]
+  destination.ip: "NOT 10.0.0.0/8"

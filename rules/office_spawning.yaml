@@ -1,0 +1,11 @@
+id: ebm-rule-001
+name: "Office Spawning Suspicious Child Process"
+description: Detects Office applications launching interpreters or suspicious binaries
+mitre:
+  technique: "T1566.001"
+  tactic: "Initial Access"
+severity: high
+condition:
+  event.type: "process_start"
+  process.parent.name: ["winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe", "msaccess.exe"]
+  process.name: ["cmd.exe", "powershell.exe", "pwsh.exe", "wscript.exe", "cscript.exe", "mshta.exe", "regsvr32.exe", "rundll32.exe"]

@@ -1,0 +1,36 @@
+agent:
+  id: ""
+  version: "1.0.0"
+  log_level: info
+
+siem:
+  url: "http://localhost:8000/api/v1/ingest"
+  ws_url: "ws://localhost:8000/api/v1/ws/logs"
+  bearer_token: "${SCARLET_TOKEN}"
+  batch_size: 50
+  flush_interval_sec: 10
+  health_check_url: "http://localhost:8000/api/v1/health"
+  health_check_interval_sec: 30
+  timeout_sec: 10
+
+collection:
+  enabled: true
+  process_events: true
+  network_events: true
+  file_events: true
+  dns_events: true
+  registry_events: true
+  image_load_events: true
+
+rules:
+  enabled: true
+  rules_dir: "./rules"
+  reload_interval_sec: 60
+
+storage:
+  db_path: "./ebm_queue.db"
+  max_size_mb: 100
+  retention_hours: 72
+
+emulator:
+  enabled: true

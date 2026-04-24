@@ -1,0 +1,11 @@
+id: ebm-rule-004
+name: "Registry Run Key Persistence"
+description: Detects modifications to Run/RunOnce registry keys for persistence
+mitre:
+  technique: "T1547.001"
+  tactic: "Persistence"
+severity: high
+condition:
+  event.type: ["registry_set", "registry_create"]
+  registry.path|contains: '\\CurrentVersion\\Run'
+  process.name: ["cmd.exe", "powershell.exe", "pwsh.exe", "rundll32.exe"]

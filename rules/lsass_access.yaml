@@ -1,0 +1,12 @@
+id: ebm-rule-002
+name: "LSASS Credential Dumping Access"
+description: Detects suspicious process access to LSASS indicative of credential dumping
+mitre:
+  technique: "T1003.001"
+  tactic: "Credential Access"
+severity: critical
+condition:
+  event.type: "process_access"
+  target.process.name: "lsass.exe"
+  granted_access: "0x1010"
+  process.name: ["mimikatz.exe", "procdump.exe", "rundll32.exe", "taskmgr.exe"]
