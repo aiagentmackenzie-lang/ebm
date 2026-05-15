@@ -7,5 +7,5 @@ mitre:
 severity: high
 condition:
   event.type: ["registry_set", "registry_create"]
-  registry.path|contains: '\\CurrentVersion\\Run'
+  registry.path|contains: "CurrentVersion\\Run"
   process.name: ["cmd.exe", "powershell.exe", "pwsh.exe", "rundll32.exe"]

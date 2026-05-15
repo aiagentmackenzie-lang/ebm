@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/aiagentmackenzie-lang/ebm/internal/model"
@@ -22,6 +23,18 @@ func New(dbPath string) (*SQLiteQueue, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
+	// Serialize writes to prevent SQLITE_BUSY under concurrent goroutine access
+	db.SetMaxOpenConns(1)
+
+	// Enable WAL mode for concurrent reads + single writer
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return nil, fmt.Errorf("set WAL mode: %w", err)
+	}
+	// Set busy timeout so concurrent writes wait instead of failing immediately
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		return nil, fmt.Errorf("set busy timeout: %w", err)
+	}
+
 	queue := &SQLiteQueue{db: db}
 	if err := queue.migrate(); err != nil {
 		return nil, err
@@ -34,7 +47,7 @@ func (q *SQLiteQueue) migrate() error {
 CREATE TABLE IF NOT EXISTS event_queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_json TEXT NOT NULL,
-    status TEXT CHECK(status IN ('pending','sent','failed')) DEFAULT 'pending',
+    status TEXT CHECK(status IN ('pending','sending','sent','failed')) DEFAULT 'pending',
     retry_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_attempt_at TIMESTAMP
@@ -59,7 +72,8 @@ func (q *SQLiteQueue) Enqueue(ev model.Event) error {
 	return err
 }
 
-// Dequeue returns up to n pending events and updates their status to 'sent'.
+// Dequeue returns up to n pending events and marks them 'sending'.
+// Events remain recoverable until MarkSent deletes them after successful delivery.
 func (q *SQLiteQueue) Dequeue(n int) ([]model.Event, error) {
 	tx, err := q.db.Begin()
 	if err != nil {
@@ -88,7 +102,7 @@ func (q *SQLiteQueue) Dequeue(n int) ([]model.Event, error) {
 		if err := json.Unmarshal([]byte(raw), &ev); err != nil {
 			return nil, err
 		}
-		ev.ID = id // use internal ID
+		ev.ID = id
 		events = append(events, ev)
 		ids = append(ids, id)
 	}
@@ -97,10 +111,14 @@ func (q *SQLiteQueue) Dequeue(n int) ([]model.Event, error) {
 		return nil, err
 	}
 
-	// Update status to 'sent' to prevent duplicate processing
+	if len(ids) == 0 {
+		return events, nil
+	}
+
+	// Mark as 'sending' — not yet confirmed delivered, so recoverable on crash
 	for _, id := range ids {
 		_, err := tx.Exec(
-			"UPDATE event_queue SET status = 'sent', last_attempt_at = ? WHERE id = ?",
+			"UPDATE event_queue SET status = 'sending', last_attempt_at = ? WHERE id = ?",
 			time.Now().UTC(), id,
 		)
 		if err != nil {
@@ -114,22 +132,18 @@ func (q *SQLiteQueue) Dequeue(n int) ([]model.Event, error) {
 	return events, nil
 }
 
-// Requeue resets status to 'pending' for a set of events.
+// Requeue resets status to 'pending' for events that failed to send,
+// incrementing retry_count. After 5 retries (retry_count >= 4 due to 0-index),
+// events are marked 'failed' permanently.
 func (q *SQLiteQueue) Requeue(events []model.Event) error {
+	if len(events) == 0 {
+		return nil
+	}
 	tx, err := q.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-
-	// After 5 retries mark as failed
-	_, err = tx.Exec(
-		"UPDATE event_queue SET status='failed' WHERE id=? AND retry_count >= 5",
-		// Will not match by id list; better: use individual updates
-	)
-	if err != nil {
-		return err
-	}
 
 	update, err := tx.Prepare("UPDATE event_queue SET status = CASE WHEN retry_count >= 4 THEN 'failed' ELSE 'pending' END, retry_count = retry_count + 1, last_attempt_at = ? WHERE id = ?")
 	if err != nil {
@@ -168,6 +182,23 @@ func (q *SQLiteQueue) MarkSent(events []model.Event) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// RecoverSending resets events stuck in 'sending' status back to 'pending'.
+// Called on startup to recover events that were dequeued but never confirmed sent.
+func (q *SQLiteQueue) RecoverSending() error {
+	result, err := q.db.Exec(
+		"UPDATE event_queue SET status = 'pending', last_attempt_at = ? WHERE status = 'sending'",
+		time.Now().UTC(),
+	)
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows > 0 {
+		slog.Info("recovered sending events back to pending", "count", rows)
+	}
+	return nil
 }
 
 // Close closes the underlying database connection.

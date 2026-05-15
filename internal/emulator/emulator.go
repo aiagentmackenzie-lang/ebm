@@ -44,12 +44,13 @@ func (e *Emulator) Run(ctx context.Context, techniqueID, payload string) error {
 
 func (e *Emulator) emit(eventType string, overrides map[string]interface{}) {
 	raw := map[string]interface{}{
-		"event.type":     "emulation",
 		"event.platform": "emulator",
 		"event.provider": "ebm_emulator",
 		"host.hostname":  "ebm-emulator-host",
 		"severity":       "info",
 	}
+	// Set the actual event type from the parameter, not hardcoded
+	raw["event.type"] = eventType
 	for k, v := range overrides {
 		raw[k] = v
 	}

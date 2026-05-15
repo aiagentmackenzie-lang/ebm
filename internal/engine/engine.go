@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +40,7 @@ func New(rulesDir string) (*Engine, error) {
 		return nil, err
 	}
 
-	var rules []Rule
+	rules := make([]Rule, 0)
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
 			continue
@@ -56,6 +57,10 @@ func New(rulesDir string) (*Engine, error) {
 			slog.Warn("unmarshal rule file", "path", path, "error", err)
 			continue
 		}
+		if rule.ID == "" || rule.Name == "" {
+			slog.Warn("skipping rule missing id or name", "path", path)
+			continue
+		}
 		rules = append(rules, rule)
 	}
 
@@ -65,7 +70,7 @@ func New(rulesDir string) (*Engine, error) {
 
 // Evaluate runs all rules against the event and returns triggered alerts.
 func (e *Engine) Evaluate(ev model.Event) []model.Alert {
-	var alerts []model.Alert
+	alerts := make([]model.Alert, 0)
 	for _, rule := range e.rules {
 		if matchCondition(rule.Condition, ev) {
 			alerts = append(alerts, model.Alert{
@@ -131,6 +136,7 @@ func getField(ev model.Event, key string) (interface{}, bool) {
 
 // matchCondition traverses the rule condition map. All top-level keys must satisfy.
 // A key suffixed with |modifier forces the modifier logic.
+// Array values for a condition key mean OR logic (any match satisfies the condition).
 func matchCondition(cond map[string]interface{}, ev model.Event) bool {
 	for key, expected := range cond {
 		modifier := ""
@@ -139,6 +145,25 @@ func matchCondition(cond map[string]interface{}, ev model.Event) bool {
 			fieldKey = key[:idx]
 			modifier = strings.ToLower(key[idx+1:])
 		}
+
+		// Array values on the condition key (without modifier) mean OR logic:
+		// event.type: ["registry_set", "registry_create"] matches either value.
+		if modifier == "" {
+			if arr, ok := expected.([]interface{}); ok {
+				matched := false
+				for _, item := range arr {
+					if valueMatches(item, actualOrSkip(ev, fieldKey), "") {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					return false
+				}
+				continue
+			}
+		}
+
 		actual, ok := getField(ev, fieldKey)
 		if !ok {
 			return false
@@ -148,6 +173,15 @@ func matchCondition(cond map[string]interface{}, ev model.Event) bool {
 		}
 	}
 	return true
+}
+
+// actualOrSkip returns the field value or a sentinel that never matches.
+func actualOrSkip(ev model.Event, fieldKey string) interface{} {
+	v, ok := getField(ev, fieldKey)
+	if !ok {
+		return struct{}{} // unmatchable sentinel
+	}
+	return v
 }
 
 func valueMatches(expected, actual interface{}, modifier string) bool {
@@ -170,9 +204,31 @@ func valueMatches(expected, actual interface{}, modifier string) bool {
 		return ok1 && ok2 && strings.HasSuffix(act, exp)
 	case "not_in":
 		return !orMatches(expected, actual, "")
+	case "cidr":
+		return cidrMatch(expected, actual)
+	case "not_cidr":
+		return !cidrMatch(expected, actual)
 	default:
 		return orMatches(expected, actual, modifier)
 	}
+}
+
+// cidrMatch checks if the actual IP falls within the expected CIDR range.
+func cidrMatch(expected, actual interface{}) bool {
+	cidrStr, ok1 := expected.(string)
+	ipStr, ok2 := actual.(string)
+	if !ok1 || !ok2 {
+		return false
+	}
+	_, ipNet, err := net.ParseCIDR(cidrStr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+	return ipNet.Contains(ip)
 }
 
 func orMatches(expected, actual interface{}, modifier string) bool {
@@ -183,6 +239,10 @@ func orMatches(expected, actual interface{}, modifier string) bool {
 	case int:
 		act, ok := actual.(int)
 		return ok && act == exp
+	case float64:
+		// YAML unmarshals numbers as float64
+		act, ok := actual.(int)
+		return ok && act == int(exp)
 	case []interface{}:
 		for _, item := range exp {
 			if valueMatches(item, actual, modifier) {

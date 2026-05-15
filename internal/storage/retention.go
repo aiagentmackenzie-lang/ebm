@@ -19,15 +19,18 @@ func (q *SQLiteQueue) PurgeOld(retentionHours int) error {
 }
 
 // Stats returns queue statistics for observability.
-func (q *SQLiteQueue) Stats() (pending, sent, failed int64, err error) {
+func (q *SQLiteQueue) Stats() (pending, sending, sent, failed int64, err error) {
 	if err := q.db.QueryRow("SELECT COUNT(*) FROM event_queue WHERE status='pending'").Scan(&pending); err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
+	}
+	if err := q.db.QueryRow("SELECT COUNT(*) FROM event_queue WHERE status='sending'").Scan(&sending); err != nil {
+		return 0, 0, 0, 0, err
 	}
 	if err := q.db.QueryRow("SELECT COUNT(*) FROM event_queue WHERE status='sent'").Scan(&sent); err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
 	if err := q.db.QueryRow("SELECT COUNT(*) FROM event_queue WHERE status='failed'").Scan(&failed); err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
 	return
 }

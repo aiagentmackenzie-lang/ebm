@@ -47,7 +47,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 }
 
 // Send transmits a batch of events as a JSON array.
-func (c *Client) Send(events []model.Event) error {
+func (c *Client) Send(ctx context.Context, events []model.Event) error {
 	var payload []model.IngestEvent
 	for _, ev := range events {
 		payload = append(payload, normalizer.Flatten(ev))
@@ -58,7 +58,7 @@ func (c *Client) Send(events []model.Event) error {
 		return fmt.Errorf("marshal ingest payload: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.cfg.URL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.URL, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

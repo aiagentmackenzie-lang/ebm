@@ -40,6 +40,11 @@ func New(configPath string) (*Agent, error) {
 		return nil, fmt.Errorf("initialize storage: %w", err)
 	}
 
+	// Recover events that were in 'sending' state from a previous crash
+	if err := store.RecoverSending(); err != nil {
+		slog.Warn("failed to recover sending events", "error", err)
+	}
+
 	client, err := transport.New(cfg.SIEM)
 	if err != nil {
 		return nil, fmt.Errorf("initialize transport: %w", err)
@@ -94,8 +99,44 @@ func (a *Agent) Stop() error {
 	close(a.stopCh)
 	a.wg.Wait()
 
-	// Final drain attempt
-	if err := a.flush(); err != nil {
+	// Drain remaining events from rawCh
+	for {
+		select {
+		case raw := <-a.rawCh:
+			ev := normalizer.TranslateAndNormalize(raw)
+			alerts := a.engine.Evaluate(ev)
+			for _, alert := range alerts {
+				alertEvent := model.Event{
+					Timestamp:      alert.Timestamp,
+					EventType:      "alert",
+					HostHostname:   ev.HostHostname,
+					Severity:       alert.Severity,
+					ProcessName:    ev.ProcessName,
+					ProcessCmdLine: ev.ProcessCmdLine,
+					RawData: map[string]interface{}{
+						"rule_id":            alert.RuleID,
+						"rule_name":          alert.RuleName,
+						"description":        alert.Description,
+						"mitre.technique_id": alert.MITRETIDs,
+						"mitre.tactic":       alert.MITRETactic,
+					},
+				}
+				if err := a.storage.Enqueue(alertEvent); err != nil {
+					slog.Error("drain: enqueue alert event", "error", err)
+				}
+			}
+			if err := a.storage.Enqueue(ev); err != nil {
+				slog.Error("drain: enqueue event", "error", err)
+			}
+		default:
+			// Channel drained
+			goto done
+		}
+	}
+done:
+
+	// Final flush attempt
+	if err := a.flush(context.Background()); err != nil {
 		slog.Error("final flush failed", "error", err)
 	}
 
@@ -116,11 +157,9 @@ func (a *Agent) ruleWorker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case raw := <-a.rawCh:
-			// Translate ECS then normalize to Event
 			ev := normalizer.TranslateAndNormalize(raw)
 			alerts := a.engine.Evaluate(ev)
 			for _, alert := range alerts {
-				// Queue alert as event for transport
 				alertEvent := model.Event{
 					Timestamp:      alert.Timestamp,
 					EventType:      "alert",
@@ -140,7 +179,6 @@ func (a *Agent) ruleWorker(ctx context.Context) {
 					slog.Error("enqueue alert event", "error", err)
 				}
 			}
-			// Queue normalized event for transport
 			if err := a.storage.Enqueue(ev); err != nil {
 				slog.Error("enqueue event", "error", err)
 			}
@@ -160,15 +198,15 @@ func (a *Agent) transportWorker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := a.flush(); err != nil {
+			if err := a.flush(ctx); err != nil {
 				slog.Error("flush events", "error", err)
 			}
 		}
 	}
 }
 
-func (a *Agent) flush() error {
-	if err := a.client.HealthCheck(context.Background()); err != nil {
+func (a *Agent) flush(ctx context.Context) error {
+	if err := a.client.HealthCheck(ctx); err != nil {
 		slog.Warn("siem health check failed, deferring flush", "error", err)
 		return nil
 	}
@@ -181,7 +219,7 @@ func (a *Agent) flush() error {
 		return nil
 	}
 
-	if err := a.client.Send(events); err != nil {
+	if err := a.client.Send(ctx, events); err != nil {
 		if rollbackErr := a.storage.Requeue(events); rollbackErr != nil {
 			return fmt.Errorf("send failed: %w; rollback also failed: %v", err, rollbackErr)
 		}

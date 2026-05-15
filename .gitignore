@@ -2,3 +2,5 @@
 /ebm_queue.db
 /agent.id
 *.test
+*.db
+*.exe

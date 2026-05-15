@@ -1,8 +1,10 @@
 package config
 
 import (
+	"crypto/rand"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -110,6 +112,15 @@ func (c *Config) setDefaults() error {
 			c.Agent.ID = string(id)
 		}
 	}
+	if c.SIEM.BearerToken == "" {
+		return fmt.Errorf("siem.bearer_token is required")
+	}
+	if strings.HasPrefix(c.SIEM.BearerToken, "${") || strings.HasPrefix(c.SIEM.BearerToken, "$") {
+		return fmt.Errorf("siem.bearer_token was not resolved — check that the environment variable is set")
+	}
+	if c.SIEM.URL == "" {
+		return fmt.Errorf("siem.url is required")
+	}
 	if c.SIEM.BatchSize == 0 {
 		c.SIEM.BatchSize = 50
 	}
@@ -138,5 +149,11 @@ func (c *Config) setDefaults() error {
 }
 
 func generateAgentID() string {
-	return fmt.Sprintf("ebm-agent-%d", time.Now().UnixNano())
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp-based ID (should not happen)
+		return fmt.Sprintf("ebm-agent-%d", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("ebm-%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

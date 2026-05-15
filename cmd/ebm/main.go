@@ -112,7 +112,7 @@ func runEmulation(ctx context.Context) error {
 			batch = append(batch, alertEvent)
 		}
 		batch = append(batch, ev)
-		if err := client.Send(batch); err != nil {
+		if err := client.Send(ctx, batch); err != nil {
 			slog.Error("emulation send failed", "error", err)
 		}
 	}
